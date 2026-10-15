@@ -1,4 +1,4 @@
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://chat-app-eckv.onrender.com').replace(/\/$/, '');
 
 export const colors = {
   primary: '#008069',
