@@ -1,0 +1,94 @@
+{
+  "expo": {
+    "name": "ChatApp",
+    "slug": "chat-app",
+    "scheme": "chatapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tecorb.chatapp",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "voip",
+          "remote-notification"
+        ],
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to use your camera for video calls and to share photos and videos",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use your microphone for calls and voice messages",
+        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to share photos and videos in chats"
+      },
+      "bitcode": false
+    },
+    "android": {
+      "package": "com.tecorb.chatapp",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.BLUETOOTH"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      "expo-secure-store",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use your camera for video calls",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use your microphone for calls and voice messages"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use your microphone for calls and voice messages",
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to share photos and videos in chats",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to take photos and videos for chats",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to record video with sound"
+        }
+      ],
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "color": "#25D366"
+        }
+      ],
+      "expo-font",
+      "expo-asset"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2e3f953c-c3b1-4d60-901b-7c0efad8fa30"
+      }
+    },
+    "owner": "aashutosh1"
+  }
+}
