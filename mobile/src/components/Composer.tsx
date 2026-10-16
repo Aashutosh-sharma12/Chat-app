@@ -10,7 +10,8 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { colors } from '@/config';
-import { duration } from '@/utils/time';
+import { duration, replyLabel } from '@/utils/time';
+import type { ReplyRef } from '@/types';
 
 const MIN_VOICE_MS = 800;
 const MAX_VIDEO_SECONDS = 120;
@@ -19,9 +20,11 @@ type Props = {
   onSendText: (text: string) => void;
   onSendMedia: (type: 'image' | 'video' | 'audio', uri: string, mime: string, fileName?: string, durationSec?: number) => void;
   onTyping: () => void;
+  reply?: { ref: ReplyRef; name: string } | null;
+  onCancelReply?: () => void;
 };
 
-export function Composer({ onSendText, onSendMedia, onTyping }: Props) {
+export function Composer({ onSendText, onSendMedia, onTyping, reply, onCancelReply }: Props) {
   const [text, setText] = useState('');
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recState = useAudioRecorderState(recorder, 200);
@@ -92,7 +95,24 @@ export function Composer({ onSendText, onSendMedia, onTyping }: Props) {
   const isRecording = recState.isRecording;
 
   return (
-    <View style={styles.bar}>
+    <View>
+      {reply && (
+        <View style={styles.replyBar}>
+          <View style={styles.replyAccent} />
+          <View style={styles.replyBody}>
+            <Text style={styles.replyName} numberOfLines={1}>
+              {reply.name}
+            </Text>
+            <Text style={styles.replyText} numberOfLines={1}>
+              {replyLabel(reply.ref)}
+            </Text>
+          </View>
+          <Pressable onPress={onCancelReply} hitSlop={10}>
+            <Ionicons name="close" size={22} color={colors.muted} />
+          </Pressable>
+        </View>
+      )}
+      <View style={styles.bar}>
       {isRecording ? (
         <View style={[styles.inputWrap, styles.recordingWrap]}>
           <View style={styles.redDot} />
@@ -135,11 +155,17 @@ export function Composer({ onSendText, onSendMedia, onTyping }: Props) {
           <Ionicons name="mic" size={24} color="#fff" />
         </Pressable>
       )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  replyBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', marginHorizontal: 6, marginTop: 6, padding: 8, borderRadius: 14 },
+  replyAccent: { width: 4, alignSelf: 'stretch', borderRadius: 2, backgroundColor: colors.primary },
+  replyBody: { flex: 1 },
+  replyName: { fontSize: 13, fontWeight: '700', color: colors.primary },
+  replyText: { fontSize: 14, color: colors.muted },
   bar: { flexDirection: 'row', alignItems: 'flex-end', padding: 6, gap: 6 },
   inputWrap: {
     flex: 1,

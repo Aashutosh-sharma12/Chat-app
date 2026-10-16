@@ -4,7 +4,7 @@ import { useChat } from '@/store/chat';
 import { myId } from '@/store/auth';
 import { emitAck } from './socket';
 import { newId } from '@/utils/id';
-import type { MediaType, Message } from '@/types';
+import type { MediaType, Message, ReplyRef } from '@/types';
 
 type Outgoing = {
   to: string;
@@ -15,6 +15,7 @@ type Outgoing = {
   mimeType?: string;
   fileName?: string;
   duration?: number;
+  replyTo?: ReplyRef | null;
 };
 
 const drafts = new Map<string, Outgoing>(); // clientId -> original request, for retry
@@ -30,6 +31,7 @@ function optimistic(o: Outgoing, clientId: string): Message {
     type: o.type,
     text: o.text,
     media: null,
+    replyTo: o.replyTo ?? null,
     status: 'pending',
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + 72 * 3600 * 1000).toISOString(),
@@ -52,6 +54,7 @@ async function deliver(o: Outgoing, clientId: string) {
       text: o.text,
       mediaId,
       clientId,
+      replyTo: o.replyTo?._id,
     });
     if (!res.ok) throw new Error(res.error);
     chat.replaceLocal(clientId, res.message);
@@ -62,8 +65,8 @@ async function deliver(o: Outgoing, clientId: string) {
   }
 }
 
-export function sendText(to: string, conversationId: string, text: string) {
-  return send({ to, conversationId, type: 'text', text });
+export function sendText(to: string, conversationId: string, text: string, replyTo?: ReplyRef | null) {
+  return send({ to, conversationId, type: 'text', text, replyTo });
 }
 
 export function sendMedia(
@@ -72,7 +75,7 @@ export function sendMedia(
   type: MediaType,
   localUri: string,
   mimeType: string,
-  extra: { fileName?: string; duration?: number } = {}
+  extra: { fileName?: string; duration?: number; replyTo?: ReplyRef | null } = {}
 ) {
   return send({ to, conversationId, type, localUri, mimeType, ...extra });
 }

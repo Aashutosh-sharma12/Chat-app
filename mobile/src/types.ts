@@ -26,6 +26,9 @@ export type Media = {
   deleted: boolean;
 };
 
+// Snapshot of the quoted message, kept even after the original expires.
+export type ReplyRef = { _id: string; sender: string; type: MessageType; text?: string };
+
 export type Message = {
   _id: string;
   clientId?: string;
@@ -35,6 +38,7 @@ export type Message = {
   type: MessageType;
   text?: string;
   media: Media | null;
+  replyTo?: ReplyRef | null;
   status: MessageStatus;
   deliveredAt?: string;
   seenAt?: string;
