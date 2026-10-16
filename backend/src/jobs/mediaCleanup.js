@@ -25,7 +25,9 @@ async function runMediaCleanup() {
         const removed = isConfigured ? await deleteAssets(expired.map((m) => m.publicId), resourceType) : expired.map((m) => m.publicId);
         if (removed.length === 0) break; // Cloudinary refused everything; retry on next run
 
-        await Media.updateMany({ publicId: { $in: removed } }, { deleted: true, deletedAt: new Date() });
+        const gone = new Set(removed);
+        const ids = expired.filter((m) => gone.has(m.publicId)).map((m) => m._id);
+        await Media.updateMany({ _id: { $in: ids } }, { deleted: true, deletedAt: new Date() });
         total += removed.length;
         if (expired.length < BATCH) break;
       }
