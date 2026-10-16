@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, Phone, Video } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { callsApi } from '../api/client';
 import { startCall } from '../callManager';
+import { localDb } from '../localDb';
 import { useCall } from '../store/call';
 import Avatar from '../components/Avatar.jsx';
 import { ListSkeleton } from '../components/ui.jsx';
@@ -14,7 +15,16 @@ export default function CallsPanel() {
   const busy = useCall((s) => s.status !== 'idle');
 
   useEffect(() => {
-    callsApi.history().then(setCalls).catch((e) => setError(e.message));
+    let fresh = false;
+    localDb.getKV('calls').then((saved) => saved && !fresh && setCalls(saved));
+    callsApi
+      .history()
+      .then((list) => {
+        fresh = true;
+        setCalls(list);
+        localDb.setKV('calls', list);
+      })
+      .catch((e) => setError((prev) => prev || e.message));
   }, []);
 
   return (
@@ -24,7 +34,7 @@ export default function CallsPanel() {
       </header>
       <p className="panel-note">Tap the icon next to a call to call that person back.</p>
       <div className="list">
-        {error ? (
+        {!calls && error ? (
           <div className="form-error">{error}</div>
         ) : !calls ? (
           <ListSkeleton />

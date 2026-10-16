@@ -91,3 +91,7 @@ npm run build            # static files in web/dist
 ```
 
 When hosting `web/dist` as a static site, add an SPA fallback to `index.html` and set `CORS_ORIGIN` on the backend to the site's URL. Calls ring only while the tab is open and need https (or localhost) for camera and microphone access; set the `TURN_*` variables on the backend for calls across different networks.
+
+## Local database (offline cache)
+
+Both clients keep a per-user copy of the chat list, recent messages and call history on the device: SQLite (`expo-sqlite`) in the mobile app and IndexedDB in the web app. Chats open instantly from the saved data, refresh from the server in the background, and stay readable offline. Messages are hidden once they pass their server expiry, and the database is wiped on sign out. After pulling this change, rebuild the mobile development build (`npx expo run:android` / `run:ios` or a new EAS build) because `expo-sqlite` is a native module.

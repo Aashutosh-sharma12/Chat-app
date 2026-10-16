@@ -40,9 +40,9 @@ export default function ChatWindow({ userId }) {
     const chat = useChat.getState();
     (async () => {
       try {
-        const [conv, user] = await Promise.all([chat.openWithUser(userId), peer ? Promise.resolve(peer) : usersApi.get(userId)]);
+        const conv = await chat.openWithUser(userId);
         if (!live) return;
-        setPeer(conv.user || user);
+        setPeer(conv.user || peer || (await usersApi.get(userId)));
         setConvId(conv._id);
         chat.setActive(conv._id);
         await chat.loadMessages(conv._id);

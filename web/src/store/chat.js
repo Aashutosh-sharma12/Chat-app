@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { chatApi } from '../api/client';
+import { localDb } from '../localDb';
 
 const RANK = { failed: 0, pending: 1, sent: 2, delivered: 3, seen: 4 };
 const LABELS = { image: 'Photo', video: 'Video', audio: 'Voice message', text: '' };
@@ -21,14 +22,31 @@ const initial = { conversations: [], messages: {}, hasMore: {}, convByUser: {}, 
 export const useChat = create((set, get) => ({
   ...initial,
 
+  // Fills the list from the on-device database (no network).
+  async hydrate() {
+    if (get().listLoaded) return;
+    const saved = await localDb.getKV('conversations');
+    if (saved && !get().listLoaded) {
+      const byUser = {};
+      for (const c of saved) byUser[c.user._id] = c._id;
+      set({ conversations: saved, convByUser: { ...byUser, ...get().convByUser }, listLoaded: true });
+    }
+  },
+
   async loadConversations() {
+    await get().hydrate(); // show the saved list right away, then refresh from the server
     const conversations = await chatApi.conversations();
     const convByUser = { ...get().convByUser };
     for (const c of conversations) convByUser[c.user._id] = c._id;
     set({ conversations, convByUser, listLoaded: true });
+    localDb.setKV('conversations', conversations);
   },
 
   async openWithUser(userId) {
+    // Conversation ids never change, so a known chat needs no request.
+    await get().hydrate();
+    const known = get().conversations.find((c) => c.user._id === userId);
+    if (known) return known;
     const conv = await chatApi.withUser(userId);
     set((s) => ({ convByUser: { ...s.convByUser, [userId]: conv._id } }));
     return conv;
@@ -38,7 +56,25 @@ export const useChat = create((set, get) => ({
     const current = get().messages[conversationId] || [];
     const before = older ? current.filter((m) => m.status !== 'pending' && m.status !== 'failed').at(-1)?.createdAt : undefined;
     if (older && !before) return;
-    const { messages, hasMore } = await chatApi.messages(conversationId, before);
+
+    // First open in this session: paint the saved messages while the network request runs.
+    if (!older && current.length === 0) {
+      const saved = await localDb.getMessages(conversationId);
+      if (saved.length) {
+        set((s) => (s.messages[conversationId]?.length ? s : { messages: { ...s.messages, [conversationId]: saved } }));
+      }
+    }
+
+    let page;
+    try {
+      page = await chatApi.messages(conversationId, before);
+    } catch (err) {
+      // Offline or server asleep: keep showing what is saved on the device.
+      if (!older && get().messages[conversationId]?.length) return;
+      throw err;
+    }
+    const { messages, hasMore } = page;
+    localDb.putMessages(messages);
 
     set((s) => {
       const existing = s.messages[conversationId] || [];
@@ -59,6 +95,7 @@ export const useChat = create((set, get) => ({
       const list = (s.messages[message.conversation] || []).map((m) =>
         m.clientId === clientId ? { ...message, localUri: m.localUri } : m
       );
+      localDb.putMessages([message]);
       const conversations = s.conversations.map((c) =>
         c._id === message.conversation ? { ...c, lastMessage: preview(message), updatedAt: message.createdAt } : c
       );
@@ -92,6 +129,7 @@ export const useChat = create((set, get) => ({
   },
 
   receive(message, from) {
+    localDb.putMessages([message]);
     set((s) => {
       const list = s.messages[message.conversation];
       const messages =
@@ -122,6 +160,7 @@ export const useChat = create((set, get) => ({
   },
 
   applyStatus(conversationId, ids, status) {
+    localDb.setStatus(ids, status);
     const idSet = new Set(ids);
     // Never move a tick backwards (e.g. a late "delivered" after "seen").
     const bump = (m) => (idSet.has(m._id) && RANK[status] > RANK[m.status] ? { ...m, status } : m);
@@ -135,5 +174,8 @@ export const useChat = create((set, get) => ({
 
   clearUnread: (id) => set((s) => ({ conversations: s.conversations.map((c) => (c._id === id ? { ...c, unread: 0 } : c)) })),
 
-  reset: () => set(initial),
+  reset() {
+    localDb.clear();
+    set(initial);
+  },
 }));
