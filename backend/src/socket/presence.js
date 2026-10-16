@@ -6,10 +6,8 @@ const { markDelivered } = require('../services/chat');
 const call = require('./call');
 
 async function partnersOf(userId) {
-  const convs = await Conversation.find({ participants: userId }).select('participants').lean();
-  const ids = new Set();
-  for (const c of convs) for (const p of c.participants) if (p.toString() !== userId) ids.add(p.toString());
-  return [...ids];
+  const ids = await Conversation.distinct('participants', { participants: userId });
+  return ids.map(String).filter((id) => id !== userId);
 }
 
 async function broadcast(userId, isOnline, lastSeen) {

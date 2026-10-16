@@ -1,15 +1,24 @@
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors } from '@/config';
-import { clockTime } from '@/utils/time';
+import { myId } from '@/store/auth';
+import { clockTime, replyLabel } from '@/utils/time';
 import { Ticks } from './Ticks';
 import { VoiceNote } from './VoiceNote';
 import type { Message } from '@/types';
 
-type Props = { message: Message; mine: boolean; onRetry?: (m: Message) => void };
+type Props = {
+  message: Message;
+  mine: boolean;
+  peerName: string; // shown as the author of quoted messages that are not mine
+  onRetry?: (m: Message) => void;
+  onReply?: (m: Message) => void;
+  onQuotePress?: (id: string) => void;
+};
 
 const EXPIRED_LABEL = { image: 'Photo expired', video: 'Video expired', audio: 'Voice message expired' };
 
@@ -64,15 +73,38 @@ function MediaContent({ message }: { message: Message }) {
   );
 }
 
-function MessageBubbleImpl({ message, mine, onRetry }: Props) {
-  const failed = message.status === 'failed';
+function Quote({ message, mine, peerName, onPress }: { message: Message; mine: boolean; peerName: string; onPress?: (id: string) => void }) {
+  const r = message.replyTo;
+  if (!r) return null;
+  const mineQuote = r.sender === myId();
   return (
+    <Pressable onPress={() => onPress?.(r._id)} style={[styles.quote, mine ? styles.quoteMine : styles.quoteTheirs]}>
+      <View style={[styles.quoteBar, { backgroundColor: mineQuote ? colors.primary : '#B44CF4' }]} />
+      <View style={styles.quoteBody}>
+        <Text style={[styles.quoteName, { color: mineQuote ? colors.primary : '#B44CF4' }]} numberOfLines={1}>
+          {mineQuote ? 'You' : peerName}
+        </Text>
+        <Text style={styles.quoteText} numberOfLines={2}>
+          {replyLabel(r)}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function MessageBubbleImpl({ message, mine, peerName, onRetry, onReply, onQuotePress }: Props) {
+  const failed = message.status === 'failed';
+  const swipe = useRef<Swipeable>(null);
+  const canReply = !!onReply && message.status !== 'pending' && message.status !== 'failed';
+
+  const bubble = (
     <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
       <Pressable
         disabled={!failed}
         onPress={() => onRetry?.(message)}
         style={[styles.bubble, mine ? styles.mine : styles.theirs, message.type !== 'text' && styles.mediaBubble]}
       >
+        <Quote message={message} mine={mine} peerName={peerName} onPress={onQuotePress} />
         <MediaContent message={message} />
         {!!message.text && <Text style={styles.text}>{message.text}</Text>}
         <View style={styles.meta}>
@@ -82,6 +114,28 @@ function MessageBubbleImpl({ message, mine, onRetry }: Props) {
       </Pressable>
       {failed && <Text style={styles.failed}>Not sent. Tap to retry.</Text>}
     </View>
+  );
+
+  if (!canReply) return bubble;
+  // Swipe right to reply; the row springs back and the composer shows the quote.
+  return (
+    <Swipeable
+      ref={swipe}
+      friction={2}
+      overshootLeft={false}
+      leftThreshold={48}
+      renderLeftActions={() => (
+        <View style={styles.swipeIcon}>
+          <Ionicons name="arrow-undo" size={20} color={colors.muted} />
+        </View>
+      )}
+      onSwipeableOpen={() => {
+        onReply(message);
+        swipe.current?.close();
+      }}
+    >
+      {bubble}
+    </Swipeable>
   );
 }
 
@@ -103,5 +157,13 @@ const styles = StyleSheet.create({
   play: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   expired: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10 },
   expiredText: { color: colors.muted, fontStyle: 'italic' },
+  quote: { flexDirection: 'row', borderRadius: 6, overflow: 'hidden', marginBottom: 4, minWidth: 120 },
+  quoteMine: { backgroundColor: 'rgba(0,0,0,0.06)' },
+  quoteTheirs: { backgroundColor: 'rgba(0,0,0,0.05)' },
+  quoteBar: { width: 4 },
+  quoteBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  quoteName: { fontSize: 13, fontWeight: '700' },
+  quoteText: { fontSize: 13, color: colors.muted },
+  swipeIcon: { width: 44, justifyContent: 'center', alignItems: 'center' },
   failed: { fontSize: 12, color: colors.danger, marginTop: 2 },
 });

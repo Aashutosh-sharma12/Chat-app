@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { colors } from '@/config';
 import { listTime } from '@/utils/time';
 import type { Conversation } from '@/types';
 
-function Row({ conv }: { conv: Conversation }) {
+const Row = memo(function Row({ conv }: { conv: Conversation }) {
   const presence = usePresence((s) => s.byUser[conv.user._id]);
   const typing = usePresence((s) => s.typing[conv.user._id]);
   const online = presence ? presence.isOnline : conv.user.isOnline;
@@ -53,7 +53,7 @@ function Row({ conv }: { conv: Conversation }) {
       </View>
     </Pressable>
   );
-}
+});
 
 export default function Chats() {
   const conversations = useChat((s) => s.conversations);

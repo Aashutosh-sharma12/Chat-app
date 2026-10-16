@@ -136,6 +136,15 @@ const step = (name) => console.log(`  ✓ ${name}`);
     assert.equal(history.body.messages[0].text, 'Are you there?');
     step('paginated history');
 
+    // Reply: quotes a message from the same conversation; an unknown id is ignored instead of failing
+    const replyAck = await emit(sb, 'message:send', { to: A.id, type: 'text', text: 'Yes!', clientId: 'c-r1', replyTo: ack2.message._id });
+    assert.equal(replyAck.message.replyTo._id, ack2.message._id);
+    assert.equal(replyAck.message.replyTo.text, 'Are you there?');
+    assert.equal(replyAck.message.replyTo.sender, A.id);
+    const noQuote = await emit(sb, 'message:send', { to: A.id, type: 'text', text: 'Hi again', clientId: 'c-r2', replyTo: '64b000000000000000000000' });
+    assert.equal(noQuote.message.replyTo, null);
+    step('reply quotes the original message');
+
     // Media cleanup: an image older than 24h gets deleted
     await Media.create({
       uploader: A.id, type: 'image', publicId: 'chat-app/image/x', resourceType: 'image', url: 'https://x/y.jpg',

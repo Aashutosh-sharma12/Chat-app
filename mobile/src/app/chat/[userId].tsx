@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { retry, sendMedia, sendText } from '@/services/messaging';
 import { startCall } from '@/services/callManager';
 import { colors } from '@/config';
 import { dayLabel, lastSeenText } from '@/utils/time';
+import { useKeyboardVisible } from '@/utils/keyboard';
 import type { Message, User } from '@/types';
 
 const EMPTY: Message[] = [];
@@ -66,6 +67,14 @@ export default function ChatScreen() {
   const messages = useChat((s) => (conversationId ? s.messages[conversationId] : undefined) ?? EMPTY);
   const hasMore = useChat((s) => (conversationId ? s.hasMore[conversationId] : false));
   const [loadingMore, setLoadingMore] = useState(false);
+  const [replying, setReplying] = useState<Message | null>(null);
+  const keyboardUp = useKeyboardVisible();
+  const listRef = useRef<FlatList<Message>>(null);
+
+  // The keyboard-avoiding view must know how far below the screen top it starts (header + status bar).
+  const frameRef = useRef<View>(null);
+  const [topOffset, setTopOffset] = useState(0);
+  const measureTop = useCallback(() => frameRef.current?.measureInWindow((_x, y) => setTopOffset(y)), []);
 
   // Open (or create) the 1-to-1 conversation and load the latest page.
   useEffect(() => {
@@ -108,6 +117,20 @@ export default function ChatScreen() {
   }, [conversationId, hasMore, loadingMore]);
 
   const me = myId();
+  const peerName = user?.name || name || '';
+
+  const replyRef = useMemo(
+    () => (replying ? { _id: replying._id, sender: replying.sender, type: replying.type, text: replying.text } : null),
+    [replying]
+  );
+
+  const scrollToMessage = useCallback(
+    (id: string) => {
+      const index = visible.findIndex((m) => m._id === id);
+      if (index >= 0) listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    },
+    [visible]
+  );
 
   const renderItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
@@ -121,15 +144,22 @@ export default function ChatScreen() {
               <Text style={styles.dayText}>{dayLabel(item.createdAt)}</Text>
             </View>
           )}
-          <MessageBubble message={item} mine={item.sender === me} onRetry={retry} />
+          <MessageBubble
+            message={item}
+            mine={item.sender === me}
+            peerName={peerName}
+            onRetry={retry}
+            onReply={setReplying}
+            onQuotePress={scrollToMessage}
+          />
         </View>
       );
     },
-    [visible, me]
+    [visible, me, peerName, scrollToMessage]
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.chatBg }}>
+    <View ref={frameRef} onLayout={measureTop} style={{ flex: 1, backgroundColor: colors.chatBg }}>
       <Stack.Screen
         options={{
           headerTitle: () => <HeaderTitle user={user} fallbackName={name || ''} />,
@@ -146,21 +176,23 @@ export default function ChatScreen() {
             ) : null,
         }}
       />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={topOffset}>
         {error ? (
           <Text style={styles.error}>{error}</Text>
         ) : !conversationId ? (
           <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />
         ) : (
           <FlatList
+            ref={listRef}
             inverted
             data={visible}
             keyExtractor={(m) => m.clientId || m._id}
             renderItem={renderItem}
+            keyboardShouldPersistTaps="handled"
+            onScrollToIndexFailed={(info) => {
+              listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
+              setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0.5, animated: true }), 300);
+            }}
             onEndReached={loadOlder}
             onEndReachedThreshold={0.3}
             contentContainerStyle={{ paddingVertical: 8 }}
@@ -174,17 +206,22 @@ export default function ChatScreen() {
             }
           />
         )}
-        <View style={{ paddingBottom: insets.bottom }}>
+        {/* The safe-area inset is only needed when the keyboard is closed; with it open the composer sits right above the keys. */}
+        <View style={{ paddingBottom: keyboardUp ? 0 : insets.bottom }}>
           {conversationId && (
             <Composer
+              reply={replyRef && { ref: replyRef, name: replyRef.sender === me ? 'You' : peerName }}
+              onCancelReply={() => setReplying(null)}
               onTyping={() => notifyTyping(userId, conversationId)}
               onSendText={(t) => {
                 stopTyping(userId, conversationId);
-                sendText(userId, conversationId, t);
+                sendText(userId, conversationId, t, replyRef);
+                setReplying(null);
               }}
-              onSendMedia={(type, uri, mime, fileName, durationSec) =>
-                sendMedia(userId, conversationId, type, uri, mime, { fileName, duration: durationSec })
-              }
+              onSendMedia={(type, uri, mime, fileName, durationSec) => {
+                sendMedia(userId, conversationId, type, uri, mime, { fileName, duration: durationSec, replyTo: replyRef });
+                setReplying(null);
+              }}
             />
           )}
         </View>

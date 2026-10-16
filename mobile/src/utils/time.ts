@@ -37,3 +37,9 @@ export function dayLabel(iso: string) {
   if (d.isSame(now.subtract(1, 'day'), 'day')) return 'Yesterday';
   return d.format('D MMMM YYYY');
 }
+
+const REPLY_LABELS = { image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message', text: '' };
+
+// Short text for a quoted message (the text itself, or a label for media).
+export const replyLabel = (r: { type: keyof typeof REPLY_LABELS; text?: string }) =>
+  r.type === 'text' ? r.text || '' : REPLY_LABELS[r.type];

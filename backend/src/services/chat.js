@@ -21,7 +21,7 @@ function snapshot(message) {
   };
 }
 
-async function sendMessage(sender, { to, type = 'text', text, mediaId, clientId }) {
+async function sendMessage(sender, { to, type = 'text', text, mediaId, clientId, replyTo }) {
   if (!mongoose.isValidObjectId(to)) throw new ApiError(400, 'Invalid recipient');
   if (to === sender._id.toString()) throw new ApiError(400, 'Cannot message yourself');
 
@@ -45,6 +45,21 @@ async function sendMessage(sender, { to, type = 'text', text, mediaId, clientId 
   }
 
   const conversation = await Conversation.findOrCreate(sender._id, receiver._id);
+
+  // Quote an earlier message from the same conversation. If it has already expired the reply is sent without a quote.
+  let quoted;
+  if (replyTo && mongoose.isValidObjectId(replyTo)) {
+    const original = await Message.findOne({ _id: replyTo, conversation: conversation._id }).select('sender type text').lean();
+    if (original) {
+      quoted = {
+        _id: original._id,
+        sender: original.sender,
+        type: original.type,
+        text: original.type === 'text' ? (original.text || '').slice(0, 200) : PREVIEW[original.type],
+      };
+    }
+  }
+
   const now = new Date();
   const message = await Message.create({
     conversation: conversation._id,
@@ -54,6 +69,7 @@ async function sendMessage(sender, { to, type = 'text', text, mediaId, clientId 
     type,
     text: type === 'text' ? text.trim() : text ? text.trim() : undefined,
     media: media ? media._id : undefined,
+    replyTo: quoted,
     expiresAt: messageExpiry(now),
   });
   message.media = media;
@@ -79,7 +95,7 @@ async function sendMessage(sender, { to, type = 'text', text, mediaId, clientId 
 
 // Marks messages addressed to `userId` as delivered and tells each sender.
 async function markDelivered(userId, filter = {}) {
-  const pending = await Message.find({ receiver: userId, status: 'sent', ...filter }).select('_id sender conversation');
+  const pending = await Message.find({ receiver: userId, status: 'sent', ...filter }).select('_id sender conversation').lean();
   if (pending.length === 0) return 0;
 
   const deliveredAt = new Date();
@@ -92,19 +108,21 @@ async function markDelivered(userId, filter = {}) {
 // Marks every unseen message in a conversation as seen by `userId` (the chat is open on their screen).
 async function markSeen(userId, conversationId) {
   if (!mongoose.isValidObjectId(conversationId)) throw new ApiError(400, 'Invalid conversation');
-  const unseen = await Message.find({
-    conversation: conversationId,
-    receiver: userId,
-    status: { $ne: 'seen' },
-  }).select('_id sender conversation');
-
-  await Conversation.updateOne({ _id: conversationId, participants: userId }, { $set: { [`unread.${userId}`]: 0 } });
+  const [unseen] = await Promise.all([
+    Message.find({ conversation: conversationId, receiver: userId, status: { $ne: 'seen' } })
+      .select('_id sender conversation')
+      .lean(),
+    Conversation.updateOne({ _id: conversationId, participants: userId }, { $set: { [`unread.${userId}`]: 0 } }),
+  ]);
   if (unseen.length === 0) return 0;
 
   const seenAt = new Date();
-  const ids = unseen.map((m) => m._id);
-  await Message.updateMany({ _id: { $in: ids }, deliveredAt: null }, { deliveredAt: seenAt });
-  await Message.updateMany({ _id: { $in: ids } }, { status: 'seen', seenAt });
+  // A seen message was necessarily delivered, so backfill deliveredAt in the same write.
+  await Message.updateMany(
+    { _id: { $in: unseen.map((m) => m._id) } },
+    [{ $set: { status: 'seen', seenAt, deliveredAt: { $ifNull: ['$deliveredAt', seenAt] } } }],
+    { updatePipeline: true }
+  );
   notifySenders(unseen, 'seen', seenAt);
   await syncLastMessageStatus(unseen, 'seen');
   return unseen.length;
@@ -124,7 +142,11 @@ function notifySenders(messages, status, at) {
 
 async function syncLastMessageStatus(messages, status) {
   const ids = messages.map((m) => m._id);
-  await Conversation.updateMany({ 'lastMessage._id': { $in: ids } }, { $set: { 'lastMessage.status': status } });
+  const conversations = [...new Set(messages.map((m) => m.conversation.toString()))];
+  await Conversation.updateMany(
+    { _id: { $in: conversations }, 'lastMessage._id': { $in: ids } },
+    { $set: { 'lastMessage.status': status } }
+  );
 }
 
 module.exports = { sendMessage, markDelivered, markSeen };

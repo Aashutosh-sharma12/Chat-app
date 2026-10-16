@@ -77,3 +77,17 @@ npx expo-doctor
 - Socket presence and call state live in memory, so run one backend instance. To scale out, add `@socket.io/redis-adapter` and move that state to Redis.
 - `react-native-webrtc` is pinned to 124.0.8 (the line the Expo config plugin is tested with). 155.0.0 came out on 2026-10-14 and is untested with the plugin.
 # Chat-app
+
+## Web app (`web/`)
+
+React + Vite web client for the same backend: phone login/register, real-time chats (typing, online status, sent/delivered/seen ticks), photo/video/voice-note sharing, replies, voice and video calls (WebRTC, interoperable with the mobile app), call history, profile settings, light/dark theme and a responsive layout (side menu on desktop, bottom bar on mobile).
+
+```bash
+cd web
+cp .env.example .env     # VITE_API_URL=http://localhost:4000 for a local backend
+npm install
+npm run dev              # http://localhost:5173
+npm run build            # static files in web/dist
+```
+
+When hosting `web/dist` as a static site, add an SPA fallback to `index.html` and set `CORS_ORIGIN` on the backend to the site's URL. Calls ring only while the tab is open and need https (or localhost) for camera and microphone access; set the `TURN_*` variables on the backend for calls across different networks.

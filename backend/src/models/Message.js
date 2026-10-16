@@ -12,6 +12,13 @@ const messageSchema = new mongoose.Schema(
     type: { type: String, enum: ['text', 'image', 'video', 'audio'], default: 'text' },
     text: { type: String, maxlength: 4000 },
     media: { type: ObjectId, ref: 'Media' },
+    // Snapshot of the quoted message, so the quote still renders after the original expires.
+    replyTo: {
+      _id: ObjectId,
+      sender: ObjectId,
+      type: { type: String },
+      text: String,
+    },
     status: { type: String, enum: ['sent', 'delivered', 'seen'], default: 'sent' },
     deliveredAt: Date,
     seenAt: Date,
@@ -37,6 +44,7 @@ messageSchema.methods.toPublic = function toPublic() {
     type: this.type,
     text: this.text,
     media,
+    replyTo: this.replyTo && this.replyTo._id ? this.replyTo : null,
     status: this.status,
     deliveredAt: this.deliveredAt,
     seenAt: this.seenAt,

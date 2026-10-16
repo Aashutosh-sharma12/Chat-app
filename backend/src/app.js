@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const env = require('./config/env');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middleware/error');
@@ -9,6 +10,7 @@ const app = express();
 
 app.set('trust proxy', 1);
 app.use(helmet());
+app.use(compression());
 app.use(cors({ origin: env.corsOrigin === '*' ? true : env.corsOrigin.split(',') }));
 app.use(express.json({ limit: '1mb' }));
 
