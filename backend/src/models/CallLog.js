@@ -20,4 +20,8 @@ const callLogSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Call history filters by participant and sorts by newest, so each side gets a compound index.
+callLogSchema.index({ caller: 1, createdAt: -1 });
+callLogSchema.index({ callee: 1, createdAt: -1 });
+
 module.exports = mongoose.model('CallLog', callLogSchema);

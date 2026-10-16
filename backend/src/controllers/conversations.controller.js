@@ -5,7 +5,7 @@ const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 
 function present(conv, meId) {
-  const other = conv.participants.find((p) => p._id.toString() !== meId.toString());
+  const other = conv.participants.find((p) => p && p._id.toString() !== meId.toString());
   return {
     _id: conv._id,
     user: other && other.toPublic ? other.toPublic() : other,
@@ -18,7 +18,9 @@ function present(conv, meId) {
 async function list(req, res) {
   const convs = await Conversation.find({ participants: req.user._id, 'lastMessage._id': { $exists: true } })
     .sort({ updatedAt: -1 })
-    .populate('participants');
+    .limit(200)
+    // Only load the other person; the signed-in user's own document is not needed.
+    .populate({ path: 'participants', match: { _id: { $ne: req.user._id } } });
   res.json({ conversations: convs.map((c) => present(c, req.user._id)) });
 }
 

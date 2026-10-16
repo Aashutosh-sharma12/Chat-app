@@ -25,6 +25,9 @@ const conversationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Chat list: my conversations, newest first.
+conversationSchema.index({ participants: 1, updatedAt: -1 });
+
 conversationSchema.statics.keyFor = (a, b) => [a.toString(), b.toString()].sort().join('_');
 
 conversationSchema.statics.findOrCreate = async function findOrCreate(a, b) {

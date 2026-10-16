@@ -31,15 +31,19 @@ async function sendMessage(sender, { to, type = 'text', text, mediaId, clientId,
     if (existing) return { message: existing, duplicate: true };
   }
 
-  const receiver = await User.findById(to);
-  if (!receiver) throw new ApiError(404, 'Recipient not found');
-
-  let media = null;
   if (type === 'text') {
     if (!text || !text.trim()) throw new ApiError(400, 'Message text is empty');
-  } else {
-    if (!mongoose.isValidObjectId(mediaId)) throw new ApiError(400, 'mediaId is required');
-    media = await Media.findOne({ _id: mediaId, uploader: sender._id, deleted: false });
+  } else if (!mongoose.isValidObjectId(mediaId)) {
+    throw new ApiError(400, 'mediaId is required');
+  }
+
+  // Independent lookups run together instead of one after another.
+  const [receiver, media] = await Promise.all([
+    User.findById(to),
+    type === 'text' ? null : Media.findOne({ _id: mediaId, uploader: sender._id, deleted: false }),
+  ]);
+  if (!receiver) throw new ApiError(404, 'Recipient not found');
+  if (type !== 'text') {
     if (!media) throw new ApiError(404, 'Media not found');
     if (media.type !== type) throw new ApiError(400, 'Media type mismatch');
   }

@@ -16,6 +16,9 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Push registration looks users up by token to move a device between accounts.
+userSchema.index({ pushTokens: 1 });
+
 userSchema.methods.toPublic = function toPublic() {
   return {
     _id: this._id,

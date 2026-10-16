@@ -6,7 +6,7 @@ async function history(req, res) {
   const logs = await CallLog.find({ $or: [{ caller: me }, { callee: me }], status: { $ne: 'ringing' } })
     .sort({ createdAt: -1 })
     .limit(100)
-    .populate('caller callee');
+    .populate('caller callee', 'phone name about avatarUrl isOnline lastSeen');
 
   res.json({
     calls: logs.map((l) => {
@@ -31,6 +31,8 @@ function iceServers(req, res) {
   if (env.turnUrls.length) {
     servers.push({ urls: env.turnUrls, username: env.turnUsername, credential: env.turnCredential });
   }
+  // Static per deployment, so clients can reuse it for a few minutes.
+  res.set('Cache-Control', 'private, max-age=300');
   res.json({ iceServers: servers });
 }
 
