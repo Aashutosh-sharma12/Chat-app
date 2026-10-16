@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { callsApi } from '@/api/endpoints';
 import { Avatar } from '@/components/Avatar';
 import { startCall } from '@/services/callManager';
+import { localDb } from '@/services/localDb';
 import { colors } from '@/config';
 import { duration, listTime } from '@/utils/time';
 import type { CallLogEntry } from '@/types';
@@ -37,8 +38,13 @@ export default function Calls() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    // Saved history first, then the fresh list from the server.
+    const saved = await localDb.getKV<CallLogEntry[]>('calls');
+    if (saved) setCalls((current) => (current.length ? current : saved));
     try {
-      setCalls(await callsApi.history());
+      const fresh = await callsApi.history();
+      setCalls(fresh);
+      localDb.setKV('calls', fresh);
     } catch {}
   }, []);
 

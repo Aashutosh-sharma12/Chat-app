@@ -21,6 +21,7 @@
     "expo-notifications": "~57.0.23",
     "expo-router": "~57.0.27",
     "expo-secure-store": "~57.0.4",
+    "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-video": "~57.0.5",
     "libphonenumber-js": "^1.13.15",

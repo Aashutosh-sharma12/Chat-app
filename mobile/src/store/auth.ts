@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { isAxiosError } from 'axios';
 import { authApi } from '@/api/endpoints';
 import { tokenStore } from '@/services/tokenStore';
+import { localDb } from '@/services/localDb';
 import type { User } from '@/types';
 
 const USER_KEY = 'user';
@@ -18,6 +19,7 @@ type AuthState = {
 };
 
 async function saveUser(user: User) {
+  localDb.use(user._id);
   await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
 }
 
@@ -30,6 +32,7 @@ export const useAuth = create<AuthState>((set) => ({
     if (!tokenStore.refreshToken) return set({ status: 'signedOut' });
 
     const cached = await SecureStore.getItemAsync(USER_KEY);
+    if (cached) localDb.use((JSON.parse(cached) as User)._id);
     try {
       const user = await authApi.me();
       await saveUser(user);

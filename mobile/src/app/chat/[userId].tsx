@@ -4,7 +4,6 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
-import { usersApi } from '@/api/endpoints';
 import { Avatar } from '@/components/Avatar';
 import { Composer } from '@/components/Composer';
 import { MessageBubble } from '@/components/MessageBubble';
@@ -81,7 +80,8 @@ export default function ChatScreen() {
     let active = true;
     (async () => {
       try {
-        const [u, conv] = await Promise.all([usersApi.get(userId), useChat.getState().openWithUser(userId)]);
+        const conv = await useChat.getState().openWithUser(userId);
+        const u = conv.user;
         if (!active) return;
         setUser(u);
         usePresence.getState().set(u._id, { isOnline: u.isOnline, lastSeen: u.lastSeen });
